@@ -1,0 +1,44 @@
+# Local-only credential tracking. Never commit.
+secrets.local.md
+secrets.local.*
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Raw FortiGate config exports (sanitize before committing under configs/phaseN/)
+configs/raw/
+*.conf.raw
+*.conf.original
+
+# Local notes scratchpad (move worthwhile content to docs/ or runbook.md)
+notes.local.md
+scratch/
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python (in case any tooling shows up later)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Terraform / Bicep state (Phase 5 stretch)
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.bicepparam.local
