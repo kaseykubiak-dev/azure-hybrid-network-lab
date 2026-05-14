@@ -2,7 +2,7 @@
 
 A site-to-site IPsec/IKEv2 VPN with eBGP between an on-prem GNS3 environment and a real Azure VNet, using FortiGate firewalls at both ends. On-prem clients reach an Azure-hosted nginx workload by private IP through the tunnel; routes are exchanged dynamically via BGP, not static routes.
 
-**Status:** Phase 3 complete. Real Azure deployment validated end-to-end over the internet. Phase 4 (case study, diagrams) in progress.
+**Status:** All phases complete. Real Azure deployment validated end-to-end over the internet.
 
 ---
 
