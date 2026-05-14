@@ -1,0 +1,200 @@
+<svg viewBox="0 0 960 580" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Azure Hybrid Network Lab - End-to-End Traffic Flow</title>
+  <desc>Packet path from on-prem Alpine client through FortiGate on-prem, IPsec tunnel, FortiGate Azure, to nginx workload VM, showing encapsulation, routing decisions, and NSG evaluation at each hop.</desc>
+
+  <defs>
+    <linearGradient id="divider-grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00ffcc" stop-opacity="0"/>
+      <stop offset="20%" stop-color="#00ffcc"/>
+      <stop offset="50%" stop-color="#0044dd"/>
+      <stop offset="80%" stop-color="#00ffcc"/>
+      <stop offset="100%" stop-color="#00ffcc" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#00ffcc"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffaa00"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="580" fill="#020509" rx="8"/>
+
+  <!-- Title -->
+  <text x="480" y="32" text-anchor="middle" font-family="monospace" font-size="10" fill="#ffaa00" letter-spacing="3">// AZURE HYBRID NETWORK LAB</text>
+  <text x="480" y="52" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#eef6ff" font-weight="600">End-to-End Traffic Flow: HTTP Request + Response</text>
+  <line x1="200" y1="64" x2="760" y2="64" stroke="url(#divider-grad)" stroke-width="1"/>
+
+  <!-- Legend -->
+  <line x1="60" y1="82" x2="100" y2="82" stroke="#00ffcc" stroke-width="2"/>
+  <text x="108" y="86" font-family="monospace" font-size="8" fill="#00ffcc">HTTP REQUEST (outbound)</text>
+  <line x1="320" y1="82" x2="360" y2="82" stroke="#ffaa00" stroke-width="2" stroke-dasharray="6 3"/>
+  <text x="368" y="86" font-family="monospace" font-size="8" fill="#ffaa00">HTTP RESPONSE (return)</text>
+
+  <!-- ========== HOP BOXES (horizontal flow) ========== -->
+
+  <!-- HOP 1: Alpine Client -->
+  <rect x="30" y="110" width="130" height="70" rx="4" fill="#030812" stroke="rgba(0,255,204,0.3)" stroke-width="1"/>
+  <circle cx="48" cy="126" r="8" fill="none" stroke="#00ffcc" stroke-width="1.5"/>
+  <text x="48" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#00ffcc" font-weight="700">1</text>
+  <text x="95" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#eef6ff" font-weight="500">Alpine Client</text>
+  <text x="95" y="148" text-anchor="middle" font-family="monospace" font-size="8" fill="#6699cc">192.168.10.100</text>
+  <text x="95" y="162" text-anchor="middle" font-family="monospace" font-size="7" fill="#4477aa">wget http://10.100.10.4</text>
+
+  <!-- Arrow 1->2 -->
+  <line x1="160" y1="145" x2="195" y2="145" stroke="#00ffcc" stroke-width="2" marker-end="url(#arrow-teal)" filter="url(#glow)"/>
+
+  <!-- HOP 2: FGT-OnPrem -->
+  <rect x="200" y="110" width="130" height="70" rx="4" fill="#030812" stroke="rgba(0,255,204,0.36)" stroke-width="1.5"/>
+  <circle cx="218" cy="126" r="8" fill="none" stroke="#00ffcc" stroke-width="1.5"/>
+  <text x="218" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#00ffcc" font-weight="700">2</text>
+  <text x="274" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#00ffcc" font-weight="500">FGT-OnPrem</text>
+  <text x="274" y="148" text-anchor="middle" font-family="monospace" font-size="8" fill="#6699cc">BGP lookup</text>
+  <text x="274" y="162" text-anchor="middle" font-family="monospace" font-size="7" fill="#4477aa">10.100.10.0/24 via tunnel</text>
+
+  <!-- Arrow 2->3 -->
+  <line x1="330" y1="145" x2="365" y2="145" stroke="#00ffcc" stroke-width="2" marker-end="url(#arrow-teal)" filter="url(#glow)"/>
+
+  <!-- HOP 3: IPsec Tunnel -->
+  <rect x="370" y="110" width="140" height="70" rx="4" fill="#030812" stroke="rgba(0,255,204,0.4)" stroke-width="1.5"/>
+  <circle cx="388" cy="126" r="8" fill="none" stroke="#00ffcc" stroke-width="1.5"/>
+  <text x="388" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#00ffcc" font-weight="700">3</text>
+  <text x="448" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#00ffcc" font-weight="500">IPsec Tunnel</text>
+  <text x="448" y="148" text-anchor="middle" font-family="monospace" font-size="8" fill="#6699cc">ESP encapsulate</text>
+  <text x="448" y="162" text-anchor="middle" font-family="monospace" font-size="7" fill="#4477aa">UDP 4500 (NAT-T)</text>
+
+  <!-- Arrow 3->4 -->
+  <line x1="510" y1="145" x2="545" y2="145" stroke="#00ffcc" stroke-width="2" marker-end="url(#arrow-teal)" filter="url(#glow)"/>
+
+  <!-- HOP 4: FGT-Azure -->
+  <rect x="550" y="110" width="130" height="70" rx="4" fill="#030812" stroke="rgba(77,166,255,0.36)" stroke-width="1.5"/>
+  <circle cx="568" cy="126" r="8" fill="none" stroke="#4da6ff" stroke-width="1.5"/>
+  <text x="568" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4da6ff" font-weight="700">4</text>
+  <text x="624" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4da6ff" font-weight="500">FGT-Azure</text>
+  <text x="624" y="148" text-anchor="middle" font-family="monospace" font-size="8" fill="#6699cc">ESP decapsulate</text>
+  <text x="624" y="162" text-anchor="middle" font-family="monospace" font-size="7" fill="#4477aa">policy: tunnel->trust</text>
+
+  <!-- Arrow 4->5 -->
+  <line x1="680" y1="145" x2="715" y2="145" stroke="#00ffcc" stroke-width="2" marker-end="url(#arrow-teal)" filter="url(#glow)"/>
+
+  <!-- HOP 5: nginx -->
+  <rect x="720" y="110" width="130" height="70" rx="4" fill="#030812" stroke="rgba(77,166,255,0.3)" stroke-width="1"/>
+  <circle cx="738" cy="126" r="8" fill="none" stroke="#4da6ff" stroke-width="1.5"/>
+  <text x="738" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4da6ff" font-weight="700">5</text>
+  <text x="794" y="130" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#eef6ff" font-weight="500">nginx VM</text>
+  <text x="794" y="148" text-anchor="middle" font-family="monospace" font-size="8" fill="#6699cc">10.100.10.4:80</text>
+  <text x="794" y="162" text-anchor="middle" font-family="monospace" font-size="7" fill="#00ffcc">HTTP 200 OK</text>
+
+  <!-- ========== DETAIL ROWS ========== -->
+
+  <!-- Row labels -->
+  <text x="30" y="220" font-family="monospace" font-size="9" fill="#ffaa00" letter-spacing="1">PACKET HEADERS</text>
+
+  <!-- Hop 1 detail -->
+  <rect x="30" y="230" width="130" height="90" rx="3" fill="#030812" stroke="rgba(0,255,204,0.15)" stroke-width="1"/>
+  <text x="40" y="248" font-family="monospace" font-size="7" fill="#6699cc">src: 192.168.10.100</text>
+  <text x="40" y="260" font-family="monospace" font-size="7" fill="#6699cc">dst: 10.100.10.4</text>
+  <text x="40" y="272" font-family="monospace" font-size="7" fill="#6699cc">proto: TCP</text>
+  <text x="40" y="284" font-family="monospace" font-size="7" fill="#6699cc">dport: 80</text>
+  <text x="40" y="300" font-family="monospace" font-size="7" fill="#4477aa">gw: 192.168.10.1</text>
+  <text x="40" y="312" font-family="monospace" font-size="7" fill="#4477aa">(default route to FGT)</text>
+
+  <!-- Hop 2 detail -->
+  <rect x="200" y="230" width="130" height="90" rx="3" fill="#030812" stroke="rgba(0,255,204,0.15)" stroke-width="1"/>
+  <text x="210" y="248" font-family="monospace" font-size="7" fill="#6699cc">BGP route match:</text>
+  <text x="210" y="260" font-family="monospace" font-size="7" fill="#00ffcc">10.100.10.0/24</text>
+  <text x="210" y="272" font-family="monospace" font-size="7" fill="#00ffcc">  via to-azure (tunnel)</text>
+  <text x="210" y="288" font-family="monospace" font-size="7" fill="#6699cc">policy: port2->to-azure</text>
+  <text x="210" y="300" font-family="monospace" font-size="7" fill="#6699cc">action: ACCEPT</text>
+  <text x="210" y="312" font-family="monospace" font-size="7" fill="#4477aa">encrypt + encapsulate</text>
+
+  <!-- Hop 3 detail -->
+  <rect x="370" y="230" width="140" height="90" rx="3" fill="#030812" stroke="rgba(0,255,204,0.15)" stroke-width="1"/>
+  <text x="380" y="248" font-family="monospace" font-size="7" fill="#6699cc">outer src: 203.0.113.1</text>
+  <text x="380" y="260" font-family="monospace" font-size="7" fill="#6699cc">outer dst: 20.122.29.13</text>
+  <text x="380" y="272" font-family="monospace" font-size="7" fill="#6699cc">proto: ESP in UDP 4500</text>
+  <text x="380" y="288" font-family="monospace" font-size="7" fill="#4477aa">R1 NAT/PAT rewrites</text>
+  <text x="380" y="300" font-family="monospace" font-size="7" fill="#4477aa">outer src to DHCP IP</text>
+  <text x="380" y="312" font-family="monospace" font-size="7" fill="#4477aa">inner pkt unchanged</text>
+
+  <!-- Hop 4 detail -->
+  <rect x="550" y="230" width="130" height="90" rx="3" fill="#030812" stroke="rgba(77,166,255,0.15)" stroke-width="1"/>
+  <text x="560" y="248" font-family="monospace" font-size="7" fill="#6699cc">Azure fabric NAT:</text>
+  <text x="560" y="260" font-family="monospace" font-size="7" fill="#6699cc">  PIP -> 10.100.1.4</text>
+  <text x="560" y="272" font-family="monospace" font-size="7" fill="#6699cc">ESP decrypt, recover:</text>
+  <text x="560" y="284" font-family="monospace" font-size="7" fill="#00ffcc">  src: 192.168.10.100</text>
+  <text x="560" y="296" font-family="monospace" font-size="7" fill="#00ffcc">  dst: 10.100.10.4</text>
+  <text x="560" y="312" font-family="monospace" font-size="7" fill="#4477aa">fwd via port2 (trust)</text>
+
+  <!-- Hop 5 detail -->
+  <rect x="720" y="230" width="130" height="90" rx="3" fill="#030812" stroke="rgba(77,166,255,0.15)" stroke-width="1"/>
+  <text x="730" y="248" font-family="monospace" font-size="7" fill="#ffaa00">NSG-TRUST outbound:</text>
+  <text x="730" y="260" font-family="monospace" font-size="7" fill="#ffaa00">  allow-forwarded-out</text>
+  <text x="730" y="272" font-family="monospace" font-size="7" fill="#ffaa00">  src 192.168.10/24 OK</text>
+  <text x="730" y="288" font-family="monospace" font-size="7" fill="#6699cc">NSG-WORKLOAD inbound:</text>
+  <text x="730" y="300" font-family="monospace" font-size="7" fill="#6699cc">  allow-tunnel-in</text>
+  <text x="730" y="312" font-family="monospace" font-size="7" fill="#00ffcc">  -> nginx :80</text>
+
+  <!-- ========== RETURN PATH ========== -->
+  <text x="30" y="355" font-family="monospace" font-size="9" fill="#ffaa00" letter-spacing="1">RETURN PATH (HTTP 200)</text>
+
+  <!-- Return flow arrow (single long dashed line) -->
+  <line x1="785" y1="375" x2="95" y2="375" stroke="#ffaa00" stroke-width="2" stroke-dasharray="8 4" marker-end="url(#arrow-amber)">
+    <animate attributeName="stroke-dashoffset" values="0;24" dur="2s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- Return path detail boxes -->
+  <rect x="30" y="395" width="900" height="100" rx="4" fill="#030812" stroke="rgba(255,170,0,0.15)" stroke-width="1"/>
+
+  <text x="50" y="418" font-family="monospace" font-size="8" fill="#ffaa00" font-weight="600">nginx VM</text>
+  <text x="50" y="432" font-family="monospace" font-size="7" fill="#6699cc">src: 10.100.10.4</text>
+  <text x="50" y="444" font-family="monospace" font-size="7" fill="#6699cc">dst: 192.168.10.100</text>
+  <text x="50" y="456" font-family="monospace" font-size="7" fill="#4477aa">UDR: 192.168.10.0/24</text>
+  <text x="50" y="468" font-family="monospace" font-size="7" fill="#4477aa">  -> 10.100.2.4 (FGT)</text>
+  <text x="50" y="480" font-family="monospace" font-size="7" fill="#4477aa">Without UDR: dropped</text>
+
+  <line x1="210" y1="405" x2="210" y2="490" stroke="rgba(255,170,0,0.15)" stroke-width="1"/>
+
+  <text x="225" y="418" font-family="monospace" font-size="8" fill="#ffaa00" font-weight="600">FGT-Azure</text>
+  <text x="225" y="432" font-family="monospace" font-size="7" fill="#6699cc">policy: trust->tunnel</text>
+  <text x="225" y="444" font-family="monospace" font-size="7" fill="#6699cc">  ACCEPT</text>
+  <text x="225" y="456" font-family="monospace" font-size="7" fill="#6699cc">BGP route: 192.168.10/24</text>
+  <text x="225" y="468" font-family="monospace" font-size="7" fill="#6699cc">  via to-onprem (tunnel)</text>
+  <text x="225" y="480" font-family="monospace" font-size="7" fill="#4477aa">ESP encrypt + send</text>
+
+  <line x1="420" y1="405" x2="420" y2="490" stroke="rgba(255,170,0,0.15)" stroke-width="1"/>
+
+  <text x="435" y="418" font-family="monospace" font-size="8" fill="#ffaa00" font-weight="600">IPsec Tunnel (return)</text>
+  <text x="435" y="432" font-family="monospace" font-size="7" fill="#6699cc">outer src: 10.100.1.4</text>
+  <text x="435" y="444" font-family="monospace" font-size="7" fill="#6699cc">  (Azure NAT -> PIP)</text>
+  <text x="435" y="456" font-family="monospace" font-size="7" fill="#6699cc">outer dst: R1 DHCP IP</text>
+  <text x="435" y="468" font-family="monospace" font-size="7" fill="#6699cc">  (R1 NAT -> 203.0.113.1)</text>
+  <text x="435" y="480" font-family="monospace" font-size="7" fill="#4477aa">ESP in UDP 4500</text>
+
+  <line x1="640" y1="405" x2="640" y2="490" stroke="rgba(255,170,0,0.15)" stroke-width="1"/>
+
+  <text x="655" y="418" font-family="monospace" font-size="8" fill="#ffaa00" font-weight="600">FGT-OnPrem</text>
+  <text x="655" y="432" font-family="monospace" font-size="7" fill="#6699cc">ESP decrypt, recover:</text>
+  <text x="655" y="444" font-family="monospace" font-size="7" fill="#6699cc">  src: 10.100.10.4</text>
+  <text x="655" y="456" font-family="monospace" font-size="7" fill="#6699cc">  dst: 192.168.10.100</text>
+  <text x="655" y="468" font-family="monospace" font-size="7" fill="#6699cc">policy: to-azure->port2</text>
+  <text x="655" y="480" font-family="monospace" font-size="7" fill="#00ffcc">  -> Alpine client</text>
+
+  <line x1="845" y1="405" x2="845" y2="490" stroke="rgba(255,170,0,0.15)" stroke-width="1"/>
+
+  <text x="860" y="418" font-family="monospace" font-size="8" fill="#00ffcc" font-weight="600">Result</text>
+  <text x="860" y="440" font-family="monospace" font-size="8" fill="#00ffcc">HTTP 200</text>
+  <text x="860" y="456" font-family="monospace" font-size="7" fill="#eef6ff">Azure Hybrid Lab</text>
+  <text x="860" y="468" font-family="monospace" font-size="7" fill="#eef6ff">workload VM</text>
+
+  <!-- Bottom bar -->
+  <line x1="100" y1="525" x2="860" y2="525" stroke="url(#divider-grad)" stroke-width="1"/>
+  <text x="480" y="545" text-anchor="middle" font-family="monospace" font-size="9" fill="#4477aa">5 hops outbound | BGP-learned routes on both sides | double NAT (R1 PAT + Azure fabric NAT)</text>
+  <text x="480" y="561" text-anchor="middle" font-family="monospace" font-size="8" fill="#4477aa">NSG evaluation happens at the Azure NIC level, after FortiGate forwards; UDR evaluation happens before the packet reaches the NIC</text>
+
+</svg>
