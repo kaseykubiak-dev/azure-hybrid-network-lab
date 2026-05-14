@@ -2,7 +2,7 @@
 
 A site-to-site IPsec/IKEv2 VPN with eBGP between an on-prem GNS3 environment and a real Azure VNet, demonstrating hybrid cloud network design end-to-end on FortiGate at both ends.
 
-**Status:** Phase 0 (pre-flight). Implementation has not started.
+**Status:** Phase 2 complete. Azure paper design finalized; ready for Phase 3 deployment.
 
 ---
 

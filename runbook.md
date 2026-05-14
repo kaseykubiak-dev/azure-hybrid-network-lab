@@ -159,7 +159,166 @@ execute router clear bgp ip 10.255.255.2
 
 ### Phase 3 Azure deploy
 
-_Filled in during Phase 3. Step-by-step Azure CLI commands or portal click-paths. Order matters: resource group, VNet, subnets, NSGs, route tables (UDRs), public IP, FortiGate VM (BYOL), nginx VM, FortiGate base config, IPsec/BGP._
+#### Prerequisites
+
+- `az login` completed on Fedora workstation
+- SSH keypair at `~/.ssh/azure_hybrid_lab_ed25519(.pub)`
+- FortiGate IPsec PSK and BGP MD5 password in Bitwarden
+- GNS3 lab (Phase 1) ready to bring up on-prem FortiGate
+
+#### Step 1 — Deploy Azure infrastructure (automated)
+
+```bash
+cd azure-hybrid-network-lab
+./scripts/deploy-lab.sh
+```
+
+The script creates: resource group, VNet, 3 subnets, 3 NSGs with all rules, route table with UDRs, public IP, FortiGate NICs (IP forwarding ON), FortiGate VM (BYOL), and nginx VM (cloud-init installs nginx). Takes ~10 minutes.
+
+**Save the Azure public IP** printed by the script. You need it for the FortiGate web GUI and the on-prem `remote-gw`.
+
+Wait for both VMs to show `VM running`:
+```bash
+az vm list -d -g rg-hybrid-lab -o table
+```
+
+#### Step 2 — License the FortiGate
+
+1. Browse to `https://<AZURE-PUBLIC-IP>` (accept the self-signed cert).
+2. Login: `azureadmin` / the password you set during deploy.
+3. Go to **System → FortiGuard** (or the license activation prompt that appears on first login).
+4. Upload the BYOL license file or activate the evaluation license via FortiCare.
+5. The VM will reboot. Wait ~2 minutes, then log in again.
+6. Verify: `get system status` should show `License Status: Valid`.
+
+> **If you see "License Status: Invalid" after reboot:** The 168.63.129.16 route may not be applied yet. Paste Block 2 from the config file first (static routes), reboot, and try again.
+
+#### Step 3 — Apply FortiGate base config
+
+Open the CLI console from the web GUI (or SSH). Paste the config blocks from `configs/phase3/fgt-azure-base.conf` in this order:
+
+1. **Block 1 — Interfaces:** Verify first with `get system interface`. Azure Marketplace usually pre-configures port1/port2 with the correct IPs. If they match (10.100.1.4/24 and 10.100.2.4/24), skip this block.
+
+2. **Block 2 — Static routes:** Default route via 10.100.1.1, Azure service IP 168.63.129.16, and workload subnet 10.100.10.0/24 via trust gateway.
+
+3. **Block 4 — IPsec phase1/phase2:** Paste this BEFORE the firewall policies. Replace `<PSK>` with the real pre-shared key from Bitwarden. Key difference from Phase 1: `set type dynamic` (no `remote-gw`).
+
+4. **Block 5 — BGP:** Replace `<BGP-MD5>` with the real password from Bitwarden.
+
+5. **Block 3 — Firewall policies:** Now that the `to-onprem` tunnel interface exists, paste the two policies.
+
+Verify static routes:
+```
+get router info routing-table static
+```
+
+#### Step 4 — Verify nginx
+
+SSH to the nginx VM from the FortiGate trust NIC (since nginx has no public IP):
+
+```
+execute ssh azureadmin@10.100.10.4
+```
+
+Or use the Azure serial console. Once in:
+```bash
+curl -s http://localhost
+# expect: <h1>Azure Hybrid Lab — workload VM</h1>
+systemctl status nginx
+# expect: active (running)
+```
+
+#### Step 5 — Update on-prem FortiGate
+
+In GNS3, start the Phase 1 lab. On FGT-OnPrem, paste from `configs/phase3/fgt-onprem-update.conf`:
+
+```
+config vpn ipsec phase1-interface
+    edit "to-azure"
+        set remote-gw <AZURE-PUBLIC-IP>
+    next
+end
+```
+
+Replace `<AZURE-PUBLIC-IP>` with the real IP from Step 1.
+
+**Remember Phase 1 operational notes:** Ensure port3 is down, transport is UDP, and tunnel interface IPs are correct. See Phase 1 critical operational notes above.
+
+#### Step 6 — Bring up the tunnel
+
+From FGT-OnPrem (the initiator):
+```
+execute ping <AZURE-PUBLIC-IP>
+```
+
+Then validate:
+```
+diagnose vpn ike gateway list     # expect: IKE SA established
+diagnose vpn tunnel list          # expect: status=up, sa=1
+execute ping 10.255.255.2         # expect: 5/5 (tunnel interface)
+```
+
+#### Step 7 — Validate BGP
+
+On FGT-OnPrem:
+```
+get router info bgp summary              # expect: Established, prefix(es) received
+get router info routing-table bgp       # expect: 10.100.10.0/24 via 10.255.255.2
+```
+
+On FGT-Azure (web GUI CLI console):
+```
+get router info bgp summary              # expect: Established, prefix(es) received
+get router info routing-table bgp       # expect: 192.168.10.0/24 via 10.255.255.1
+```
+
+If BGP is stuck, nudge it:
+```
+execute router clear bgp ip 10.255.255.2    # on FGT-OnPrem
+execute router clear bgp ip 10.255.255.1    # on FGT-Azure
+```
+
+#### Step 8 — End-to-end traffic test
+
+From the on-prem client (Alpine in GNS3):
+```bash
+ip addr add 192.168.10.10/24 dev eth0
+ip link set eth0 up
+ip route add default via 192.168.10.1
+wget -O- http://10.100.10.4
+# expect: HTTP 200 with "Azure Hybrid Lab — workload VM"
+```
+
+This proves: on-prem client → FGT-OnPrem → IPsec tunnel → FGT-Azure → UDR → nginx VM → reverse path. Full hybrid connectivity over eBGP-learned routes.
+
+#### Step 9 — Capture artifacts
+
+```bash
+# On FGT-Azure (web GUI CLI):
+show full-configuration          # save to configs/phase3/fgt-azure.conf (sanitize PSK/passwords)
+
+# On FGT-OnPrem (GNS3):
+show full-configuration          # update configs/phase1/fgt-onprem.conf with the remote-gw change
+
+# Screenshots to capture:
+#   - BGP summary on both sides
+#   - Routing table on both sides showing learned routes
+#   - IPsec monitor showing tunnel up
+#   - wget output from Alpine client
+#   - Azure portal: resource group overview, NSG effective rules, route table effective routes
+```
+
+#### Step 10 — Deallocate
+
+```bash
+./scripts/deallocate-lab.sh
+```
+
+Confirm VMs are stopped (deallocated):
+```bash
+az vm list -d -g rg-hybrid-lab -o table
+# expect: PowerState = VM deallocated
+```
 
 ---
 
@@ -235,11 +394,99 @@ Other causes if license is valid:
 
 ### Azure FortiGate cannot reach internet on untrust NIC
 
-_Filled in during Phase 3b. Common causes: NSG blocking egress, public IP not associated, default route missing or wrong, FortiGate's expected gateway IP differs from Azure's first-IP-of-subnet convention._
+Common causes:
+- **NSG blocking egress** — Default Azure NSGs allow outbound. If you added a deny-all outbound rule, egress is blocked. Check: `az network nsg rule list -g rg-hybrid-lab --nsg-name nsg-untrust -o table`
+- **Public IP not associated** — Verify: `az network nic show -g rg-hybrid-lab -n fgt-untrust-nic --query ipConfigurations[0].publicIPAddress.id -o tsv` (should return the pip resource ID)
+- **Default route missing or wrong** — `get router info routing-table static` must show 0.0.0.0/0 via 10.100.1.1 on port1. Azure's gateway is always the first IP in the subnet (10.100.1.1 for 10.100.1.0/24).
+- **168.63.129.16 unreachable** — Licensing and Azure extensions require this IP. Verify route 2 exists: `get router info routing-table static` should show 168.63.129.16/32 via 10.100.1.1
+
+Test from FortiGate CLI:
+```
+execute ping 8.8.8.8
+execute ping 168.63.129.16
+```
+
+### FortiGate web GUI unreachable after licensing (PR_CONNECT_RESET_ERROR)
+
+The evaluation license restricts all crypto to DES-based ciphers. This applies to the HTTPS management plane too — the FortiGate's web server can only offer ciphers that modern browsers refuse (TLS handshake fails). The browser shows `PR_CONNECT_RESET_ERROR` or `ERR_SSL_VERSION_OR_CIPHER_MISMATCH`.
+
+Workaround: Use the **Azure serial console** (Portal → Virtual machines → fgt-azure → Help → Serial console) for all CLI management. The web GUI is not accessible with a trial license on modern browsers.
+
+### NSG blocks tunnel-sourced traffic to workload subnet
+
+When the FortiGate forwards traffic from the IPsec tunnel (source IP `10.255.255.x`) out the trust NIC to the workload subnet, Azure's default outbound NSG rule `AllowVnetOutBound` drops it because `10.255.255.0/24` is not part of the VNet's address space and doesn't match the `VirtualNetwork` service tag.
+
+Fix: Add an explicit outbound allow rule on `nsg-trust`:
+```bash
+az network nsg rule create --resource-group rg-hybrid-lab \
+  --nsg-name nsg-trust --name allow-forwarded-out \
+  --priority 100 --direction Outbound --access Allow \
+  --source-address-prefixes 10.255.255.0/24 192.168.10.0/24 \
+  --destination-address-prefixes 10.100.10.0/24 \
+  --destination-port-ranges '*' --protocol '*'
+```
+
+Also add inbound rules on `nsg-workload` for tunnel and on-prem source IPs:
+```bash
+az network nsg rule create --resource-group rg-hybrid-lab \
+  --nsg-name nsg-workload --name allow-tunnel-in \
+  --priority 105 --direction Inbound --access Allow \
+  --source-address-prefixes 10.255.255.0/24 192.168.10.0/24 \
+  --destination-port-ranges '*' --protocol '*'
+```
+
+### Workload VM cannot reach internet (cloud-init / apt-get fails)
+
+The UDR `0.0.0.0/0 → 10.100.2.4` forces all workload traffic through the FortiGate, but there is no FortiGate policy to NAT it out to the internet. This breaks cloud-init, apt-get, and any outbound connectivity from the nginx VM.
+
+Workaround: Temporarily replace the UDR default route with `--next-hop-type Internet`, run the install, then restore the FortiGate route. See deploy script comments for the exact commands.
+
+### Azure free trial subscription blocks most VM SKUs
+
+Azure free trial subscriptions restrict nearly all B/D/F-series VM families with `NotAvailableForSubscription`. Upgrading to **Pay-As-You-Go** (Portal → Subscriptions → Upgrade) removes these restrictions while keeping the $200 free credit. The upgrade is free and takes effect within minutes.
+
+### FortiGate Gen1 image incompatible with v6/v7 VM SKUs
+
+Newer Azure VM SKUs (v6, v7 generation) are Gen2-only (UEFI boot). The default FortiGate marketplace image `fortinet_fg-vm` is Gen1 (BIOS). Use the Gen2 image SKU `fortinet_fg-vm_g2` instead. Accept marketplace terms for the new SKU before deploying:
+```bash
+az vm image terms accept --publisher fortinet --offer fortinet_fortigate-vm_v5 --plan fortinet_fg-vm_g2
+```
+
+### FortiGate trial license limits VM to 1 vCPU / 2 GB RAM
+
+If the FortiGate VM is deployed with more than 1 vCPU or 2 GB RAM, the license page shows "License invalid due to exceeding allowed 1 CPUs and 2 GB RAM." Resize the VM to a 1-vCPU SKU:
+```bash
+az vm deallocate --resource-group rg-hybrid-lab --name fgt-azure
+az vm resize --resource-group rg-hybrid-lab --name fgt-azure --size Standard_F1alds_v7
+az vm start --resource-group rg-hybrid-lab --name fgt-azure
+```
+
+### GNS3 on-prem FortiGate needs real internet path for Phase 3
+
+In Phase 1, FGT-OnPrem's WAN pointed at the GNS3 FGT-Azure via the ISP router (R1). In Phase 3, R1's Fa0/1 must connect to a GNS3 NAT node (bridged to the host NIC) so FGT-OnPrem can reach the real Azure public IP. R1 needs NAT configuration:
+```
+conf t
+interface FastEthernet0/1
+  ip address dhcp
+  ip nat outside
+interface FastEthernet0/0
+  ip nat inside
+ip route 0.0.0.0 0.0.0.0 192.168.122.1
+ip nat inside source list 1 interface FastEthernet0/1 overload
+access-list 1 permit 203.0.113.0 0.0.0.3
+end
+```
+Note: Use the actual DHCP gateway IP (check with `show ip route 0.0.0.0`), not the interface name, for the default route on multi-access Ethernet interfaces.
 
 ### UDR not forcing traffic through FortiGate
 
-_Filled in during Phase 3a. Validate via Azure Portal effective routes view; common causes: route table not associated to subnet, more-specific route exists, FortiGate trust NIC doesn't have IP forwarding enabled._
+Validate via Azure Portal: **Virtual network → snet-workload → Effective routes** (or `az network nic show-effective-route-table -g rg-hybrid-lab -n nginx-nic -o table`).
+
+Common causes:
+- **Route table not associated to subnet** — Verify: `az network vnet subnet show -g rg-hybrid-lab --vnet-name vnet-hybrid-lab -n snet-workload --query routeTable.id -o tsv`
+- **IP forwarding not enabled on FortiGate trust NIC** — This is the #1 cause. Azure silently drops packets if the destination IP doesn't match the NIC's IP and IP forwarding is off. Verify: `az network nic show -g rg-hybrid-lab -n fgt-trust-nic --query enableIPForwarding -o tsv` (must be `true`). Fix: `az network nic update -g rg-hybrid-lab -n fgt-trust-nic --ip-forwarding true`
+- **IP forwarding not enabled on untrust NIC** — Also needed for return traffic from the tunnel. Same check/fix for `fgt-untrust-nic`.
+- **More-specific route shadowing UDR** — Azure system routes for VNet prefixes have higher priority. The `local-workload` VNet route in the UDR handles this for intra-subnet traffic.
 
 ---
 
